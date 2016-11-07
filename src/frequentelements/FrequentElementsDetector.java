@@ -33,200 +33,28 @@ import java.util.TreeSet;
  */
 public class FrequentElementsDetector {
     
-/*
-    // we divide the file into small blocks. If the blocks
-    // are too small, we shall create too many temporary files. 
-    // If they are too big, we shall be using too much memory. 
-    public static long estimateBestSizeOfBlocks(File filetobesorted) {
-        long sizeoffile = filetobesorted.length();
-        // we don't want to open up much more than 1024 temporary files, better run
-        // out of memory first. (Even 1024 is stretching it.)
-        final int MAXTEMPFILES = 1024;
-        long blocksize = sizeoffile / MAXTEMPFILES ;
-        // on the other hand, we don't want to create many temporary files
-        // for naught. If blocksize is smaller than half the free memory, grow it.
-        long freemem = Runtime.getRuntime().freeMemory();
-        if( blocksize < freemem/2)
-            blocksize = freemem/2;
-        else {
-            if(blocksize >= freemem) 
-              System.err.println("We expect to run out of memory. ");
-        }
-        return blocksize;
-    }
- 
-     // This will simply load the file by blocks of x rows, then
-     // sort them in-memory, and write the result to a bunch of 
-     // temporary files that have to be merged later.
-     // 
-     // @param file some flat  file
-     // @return a list of temporary flat files
- 
-    public static List<File> sortInBatch(File file, Comparator<String> cmp) throws IOException {
-        List<File> files = new ArrayList<File>();
-        BufferedReader fbr = new BufferedReader(new FileReader(file));
-        long blocksize = estimateBestSizeOfBlocks(file);// in bytes
-        try{
-            List<String> tmplist =  new ArrayList<String>();
-            String line = "";
-            try {
-                while(line != null) {
-                    long currentblocksize = 0;// in bytes
-                    while((currentblocksize < blocksize) 
-                    &&(   (line = fbr.readLine()) != null) ){ // as long as you have 2MB
-                        tmplist.add(line);
-                        currentblocksize += line.length() // 2 + 40; // java uses 16 bits per character + 40 bytes of overhead (estimated)
-                    }
-                    files.add(sortAndSave(tmplist,cmp));
-                    tmplist.clear();
-                }
-            } catch(EOFException oef) {
-                if(tmplist.size()>0) {
-                    files.add(sortAndSave(tmplist,cmp));
-                    tmplist.clear();
-                }
-            }
-        } finally {
-            fbr.close();
-        }
-        return files;
-    }
- 
- 
-    public static File sortAndSave(List<String> tmplist, Comparator<String> cmp) throws IOException  {
-        Collections.sort(tmplist,cmp);  // 
-        File newtmpfile = File.createTempFile("sortInBatch", "flatfile");
-        newtmpfile.deleteOnExit();
-        BufferedWriter fbw = new BufferedWriter(new FileWriter(newtmpfile));
-        try {
-            for(String r : tmplist) {
-                fbw.write(r);
-                fbw.newLine();
-            }
-        } finally {
-            fbw.close();
-        }
-        return newtmpfile;
-    }
- 
-     // This merges a bunch of temporary flat files 
-     // @param files
-     // @param output file
-     // @return The number of lines sorted. (P. Beaudoin)
- 
-    public static int mergeSortedFiles(List<File> files, File outputfile, final Comparator<String> cmp) throws IOException {
-        PriorityQueue<BinaryFileBuffer> pq = new PriorityQueue<BinaryFileBuffer>(11, 
-            new Comparator<BinaryFileBuffer>() {
-              public int compare(BinaryFileBuffer i, BinaryFileBuffer j) {
-                return cmp.compare(i.peek(), j.peek());
-              }
-            }
-        );
-        for (File f : files) {
-            BinaryFileBuffer bfb = new BinaryFileBuffer(f);
-            pq.add(bfb);
-        }
-        BufferedWriter fbw = new BufferedWriter(new FileWriter(outputfile));
-        int rowcounter = 0;
-        try {
-            while(pq.size()>0) {
-                BinaryFileBuffer bfb = pq.poll();
-                String r = bfb.pop();
-                fbw.write(r);
-                fbw.newLine();
-                ++rowcounter;
-                if(bfb.empty()) {
-                    bfb.fbr.close();
-                    bfb.originalfile.delete();// we don't need you anymore
-                } else {
-                    pq.add(bfb); // add it back
-                }
-            }
-        } finally { 
-            fbw.close();
-            for(BinaryFileBuffer bfb : pq ) bfb.close();
-        }
-        return rowcounter;
-    }
- 
-    public static void main(String[] args) throws IOException {
-        if(args.length<2) {
-            System.out.println("please provide input and output file names");
-            return;
-        }
-        String inputfile = args[0];
-        String outputfile = args[1];
-        Comparator<String> comparator = new Comparator<String>() {
-            public int compare(String r1, String r2){
-                return r1.compareTo(r2);}};
-        List<File> l = sortInBatch(new File(inputfile), comparator) ;
-        mergeSortedFiles(l, new File(outputfile), comparator);
-    }
-}
- 
- 
-class BinaryFileBuffer  {
-    public static int BUFFERSIZE = 2048;
-    public BufferedReader fbr;
-    public File originalfile;
-    private String cache;
-    private boolean empty;
-     
-    public BinaryFileBuffer(File f) throws IOException {
-        originalfile = f;
-        fbr = new BufferedReader(new FileReader(f), BUFFERSIZE);
-        reload();
-    }
-     
-    public boolean empty() {
-        return empty;
-    }
-     
-    private void reload() throws IOException {
-        try {
-          if((this.cache = fbr.readLine()) == null){
-            empty = true;
-            cache = null;
-          }
-          else{
-            empty = false;
-          }
-      } catch(EOFException oef) {
-        empty = true;
-        cache = null;
-      }
-    }
-     
-    public void close() throws IOException {
-        fbr.close();
-    }
-     
-     
-    public String peek() {
-        if(empty()) return null;
-        return cache.toString();
-    }
-    public String pop() throws IOException {
-      String answer = peek();
-        reload();
-      return answer;
-    }
-     
-     
- 
-}
-*/
     private final static int MERGE_SIMULTANEOUSLY = 2;
 
     public static void main(String[] args) throws Exception {
         FrequentElementsDetector detector = new FrequentElementsDetector();
-        List<String> detect = detector.detect(new File("/home/toor/assignments/test01"));
+        detector.detect(new File("/home/petrk/assignments/test01"));
     }
     
     public List<String> detect(File path) throws IOException {
-        TemporaryStorage firstStorage = new FileBasedTemporaryStorage();
-        TemporaryStorage secondStorage = new FileBasedTemporaryStorage();
-        externalSort(firstStorage, secondStorage, path);
+        TemporaryStorage firstStorage = null;
+        TemporaryStorage secondStorage = null;
+        try {
+            firstStorage = new FileBasedTemporaryStorage();
+            secondStorage = new FileBasedTemporaryStorage();
+            externalSort(firstStorage, secondStorage, path);
+        } finally {
+            if (firstStorage != null) {
+                firstStorage.clear();
+            }
+            if (secondStorage != null) {
+                secondStorage.clear();
+            }
+        }
         return Collections.emptyList();
     }
 
@@ -236,28 +64,42 @@ class BinaryFileBuffer  {
         try (BufferedReader fIn = new BufferedReader(new FileReader(input))) {
             PhrasesReader reader = new PhrasesReader(fIn);
             Collection<Phrase> chunk = readAndSortChunk(reader, maxChunkSize);
-            int chunkFileId = firstStorage.create();
-            firstStorage.open(chunkFileId, false, true);
-            chunkFiles.add(chunkFileId);
-            writeChunk(firstStorage, chunk, chunkFileId);
+            chunkFiles.add(writeChunk(firstStorage, chunk));
         }
-        externalSortFiles(firstStorage, secondStorage, chunkFiles);
-    }
-    
-    private int externalSortFiles(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> files) throws IOException {
-        if (files.size() <= readStorage.getSimultaneousAccessNumber()) {
-            int output = writeStorage.create();
-            mergeChunkFiles(readStorage, writeStorage, files, output);
-            return output;
-        } else {
-            List<Path> chunkFiles = new ArrayList<>();
-            throw new UnsupportedOperationException("Not implemented!");
+        Pair<TemporaryStorage, Integer> sorted = externalSortBatch(firstStorage, secondStorage, chunkFiles);
+        TemporaryStorage storage = sorted.first;
+        int file = sorted.second;
+        storage.open(file, true, false);
+        Phrase phrase;
+        while ((phrase = storage.read(file)) != null) {
+            System.out.println(phrase);
         }
     }
     
-    private void mergeChunkFiles(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> input, int output) throws IOException {
+    private Pair<TemporaryStorage, Integer> externalSortBatch(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> files) throws IOException {
+        if (files.size() > 1) {
+            List<Integer> merged = new ArrayList();
+            int from = 0;
+            int to = (files.size() > readStorage.getSimultaneousAccessNumber()) 
+                    ? readStorage.getSimultaneousAccessNumber() 
+                    : files.size();
+            while (from < to) {
+                merged.add(mergeChunkFiles(readStorage, writeStorage, files.subList(from, to)));
+                from = to;
+                to = Math.min(to + readStorage.getSimultaneousAccessNumber(), files.size());
+            }
+            readStorage.clear();
+            return externalSortBatch(writeStorage, readStorage, merged);
+        }
+        assert files.size() == 1;
+        return Pair.of(readStorage, files.get(0));
+    }
+    
+    private int mergeChunkFiles(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> input) throws IOException {
         List<Pair<Integer, Phrase>> readers = new ArrayList<>();
+        int output = -1;
         try {
+            output = writeStorage.create();
             writeStorage.open(output, false, true);
             for (Integer id : input) {
                 readStorage.open(id, true, false);
@@ -286,6 +128,7 @@ class BinaryFileBuffer  {
             readStorage.closeAll();
             writeStorage.close(output);
         }
+        return output;
     }
     
     private Phrase fetchFirstLine(TemporaryStorage storage, List<Pair<Integer, Phrase>> readers) throws IOException {
@@ -337,12 +180,14 @@ class BinaryFileBuffer  {
         return chunk.values();
     }
    
-    private void writeChunk(TemporaryStorage storage, Collection<Phrase> chunk, int ouputId) throws IOException {
-        storage.open(ouputId, false, true);
+    private int writeChunk(TemporaryStorage storage, Collection<Phrase> chunk) throws IOException {
+        int outputId = storage.create();
+        storage.open(outputId, false, true);
         for (Phrase phase : chunk) {
-            storage.write(ouputId, phase);
+            storage.write(outputId, phase);
         }
-        storage.close(ouputId);
+        storage.close(outputId);
+        return outputId;
     }
     
     public static interface TemporaryStorage {
@@ -428,7 +273,7 @@ class BinaryFileBuffer  {
             String line = stored.second.readLine();
             if (line != null) {
                 int counter = Integer.valueOf(line.substring(0, line.indexOf(':')));
-                return new Phrase(line.substring(line.indexOf(':')), counter);
+                return new Phrase(line.substring(line.indexOf(':') + 1), counter);
             }
             return null;
         }
@@ -439,6 +284,7 @@ class BinaryFileBuffer  {
             assert stored != null;
             String strValue = value.asString();
             stored.third.write(strValue);
+            stored.third.write('\n');
             return strValue.length() * Character.BYTES;
         }
 
@@ -466,9 +312,11 @@ class BinaryFileBuffer  {
                     return tokenizer.nextToken();
                 }
                 String line = reader.readLine();
-                tokenizer = new StringTokenizer(line, "|");
-                if (tokenizer.hasMoreTokens()) {
-                    return tokenizer.nextToken();
+                if (line != null) {
+                    tokenizer = new StringTokenizer(line, "|");
+                    if (tokenizer.hasMoreTokens()) {
+                        return tokenizer.nextToken();
+                    }
                 }
                 finished = true;
             }
@@ -510,6 +358,11 @@ class BinaryFileBuffer  {
         @Override
         public int compareTo(Phrase o) {
             return text.compareTo(o.text);
+        }
+
+        @Override
+        public String toString() {
+            return "[" + counter + ", " + text + "]";
         }
     }
     
