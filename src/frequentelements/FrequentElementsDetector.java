@@ -19,6 +19,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -34,6 +36,10 @@ import java.util.TreeSet;
 public class FrequentElementsDetector {
     
     private final static int MERGE_SIMULTANEOUSLY = 2;
+    
+    private final static int BEST_CHUNK_SIZE = 32; // bytes
+    
+    private final static int HOW_MANY_TOP_PHRASES = 3;
 
     public static void main(String[] args) throws Exception {
         FrequentElementsDetector detector = new FrequentElementsDetector();
@@ -46,7 +52,11 @@ public class FrequentElementsDetector {
         try {
             firstStorage = new FileBasedTemporaryStorage();
             secondStorage = new FileBasedTemporaryStorage();
-            externalSort(firstStorage, secondStorage, path);
+            Pair<TemporaryStorage, Integer> sorted = externalSort(firstStorage, secondStorage, path);
+            Collection<String> topPhrases = extractTopPhrases(sorted.first, sorted.second, HOW_MANY_TOP_PHRASES);
+            for (String phrase : topPhrases) {
+                System.out.println(phrase);
+            }
         } finally {
             if (firstStorage != null) {
                 firstStorage.clear();
@@ -57,45 +67,71 @@ public class FrequentElementsDetector {
         }
         return Collections.emptyList();
     }
+    
+    private Collection<String> extractTopPhrases(TemporaryStorage storage, int file, int howMany) throws IOException {
+        final TreeMap<Integer, List<String>> result = new TreeMap<>((Integer o1, Integer o2) -> o2.compareTo(o1)); // descending order
+        int size = 0;
+        storage.open(file, true, false);
+        Phrase phrase;
+        while ((phrase = storage.read(file)) != null) {
+            putInMapOfLists(result, phrase.counter, phrase.text);
+            if (size == howMany) {
+                Map.Entry<Integer, List<String>> lastEntry = result.lastEntry();
+                List<String> value = lastEntry.getValue();
+                value.remove(0); // remove any phrase (let it be the first one)
+                if (value.isEmpty()) {
+                    result.remove(lastEntry.getKey());
+                }
+            } else {
+                ++size;
+            }
+        }
+        storage.close(file);
+        return result.values().stream()
+                .flatMap((list) -> list.stream())
+                .collect(Collectors.toList());
+    }
 
-    private void externalSort(TemporaryStorage firstStorage, TemporaryStorage secondStorage, File input) throws IOException {
+    private Pair<TemporaryStorage, Integer> externalSort(TemporaryStorage firstStorage, TemporaryStorage secondStorage, File input) throws IOException {
         int maxChunkSize = getBestChunkSize(input);
         List<Integer> chunkFiles = new ArrayList<>();
         try (BufferedReader fIn = new BufferedReader(new FileReader(input))) {
             PhrasesReader reader = new PhrasesReader(fIn);
-            Collection<Phrase> chunk = readAndSortChunk(reader, maxChunkSize);
-            chunkFiles.add(writeChunk(firstStorage, chunk));
+            while (reader.hasNext()) {
+                Collection<Phrase> chunk = readAndSortChunk(reader, maxChunkSize);
+                chunkFiles.add(writeChunk(firstStorage, chunk));
+            }
         }
         Pair<TemporaryStorage, Integer> sorted = externalSortBatch(firstStorage, secondStorage, chunkFiles);
-        TemporaryStorage storage = sorted.first;
-        int file = sorted.second;
-        storage.open(file, true, false);
-        Phrase phrase;
-        while ((phrase = storage.read(file)) != null) {
-            System.out.println(phrase);
-        }
+        assert(DIAGS.dump(sorted));
+        return sorted;
     }
     
-    private Pair<TemporaryStorage, Integer> externalSortBatch(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> files) throws IOException {
-        if (files.size() > 1) {
-            List<Integer> merged = new ArrayList();
+    private int getBestChunkSize(File input) {
+        return BEST_CHUNK_SIZE; 
+    }
+    
+    private Pair<TemporaryStorage, Integer> externalSortBatch(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> inputFiles) throws IOException {
+        if (inputFiles.size() > 1) {
+            List<Integer> outputFiles = new ArrayList();
             int from = 0;
-            int to = (files.size() > readStorage.getSimultaneousAccessNumber()) 
+            int to = (inputFiles.size() > readStorage.getSimultaneousAccessNumber()) 
                     ? readStorage.getSimultaneousAccessNumber() 
-                    : files.size();
+                    : inputFiles.size();
             while (from < to) {
-                merged.add(mergeChunkFiles(readStorage, writeStorage, files.subList(from, to)));
+                outputFiles.add(mergeFiles(readStorage, writeStorage, inputFiles.subList(from, to)));
                 from = to;
-                to = Math.min(to + readStorage.getSimultaneousAccessNumber(), files.size());
+                to = Math.min(to + readStorage.getSimultaneousAccessNumber(), inputFiles.size());
             }
             readStorage.clear();
-            return externalSortBatch(writeStorage, readStorage, merged);
+            assert(DIAGS.addPhase(inputFiles.size(), outputFiles.size()));
+            return externalSortBatch(writeStorage, readStorage, outputFiles);
         }
-        assert files.size() == 1;
-        return Pair.of(readStorage, files.get(0));
+        assert inputFiles.size() == 1;
+        return Pair.of(readStorage, inputFiles.get(0));
     }
     
-    private int mergeChunkFiles(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> input) throws IOException {
+    private int mergeFiles(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> input) throws IOException {
         List<Pair<Integer, Phrase>> readers = new ArrayList<>();
         int output = -1;
         try {
@@ -112,8 +148,8 @@ public class FrequentElementsDetector {
             while (current != null) {
                 Phrase next = fetchNextLine(readStorage, readers);
                 if (next != null) {
-                    if (current.compareTo(next) != 0) {
-                        assert current.compareTo(next) < 0;
+                    if (current.compareByText(next) != 0) {
+                        assert current.compareByText(next) < 0;
                         writeStorage.write(output, current);
                         current = next;
                     } else {
@@ -140,28 +176,27 @@ public class FrequentElementsDetector {
     }
     
     private Phrase fetchNextLine(TemporaryStorage storage, List<Pair<Integer, Phrase>> readers) throws IOException {
-        Pair<Integer, Phrase> best = null;
+        if (readers.isEmpty()) {
+            return null;
+        }
+        Pair<Integer, Phrase> bestReader = null;
         for (Pair<Integer, Phrase> reader : readers) {
             assert reader.second != null : "Why prepared reader has empty line?";
-            if (best == null) {
-                best = reader;
+            if (bestReader == null) {
+                bestReader = reader;
             } else {
-                int comparison = best.second.compareTo(reader.second);
+                int comparison = bestReader.second.compareByText(reader.second);
                 if (comparison > 0) {
-                    best = reader;
+                    bestReader = reader;
                 }
             }
         }
-        Phrase retval = best.second;
-        best.second = storage.read(best.first);
-        if (best.second == null) {
-            readers.remove(best);
+        Phrase retval = bestReader.second;
+        bestReader.second = storage.read(bestReader.first);
+        if (bestReader.second == null) {
+            readers.remove(bestReader);
         }
         return retval;
-    }
-    
-    private int getBestChunkSize(File input) {
-        return 10 * 1024 * 1024; // 10 MB
     }
     
     private Collection<Phrase> readAndSortChunk(PhrasesReader reader, int approxMaxChunkSize) throws IOException {
@@ -188,6 +223,15 @@ public class FrequentElementsDetector {
         }
         storage.close(outputId);
         return outputId;
+    }
+    
+    private static <K, T> void putInMapOfLists(Map<K, List<T>> map, K key, T value) {
+        List<T> list = map.get(key);
+        if (list == null) {
+            list = new ArrayList<>();
+            map.put(key, list);
+        }
+        list.add(value);
     }
     
     public static interface TemporaryStorage {
@@ -298,33 +342,42 @@ public class FrequentElementsDetector {
         
         private final BufferedReader reader;
         
-        private StringTokenizer tokenizer = null;
+        private StringTokenizer tokenizer;
         
-        private boolean finished = false;
+        private String nextPhrase;
         
-        public PhrasesReader(BufferedReader reader) {
+        public PhrasesReader(BufferedReader reader) throws IOException {
             this.reader = reader;
+            this.tokenizer = null;
+            this.nextPhrase = computeNext();
+        }
+        
+        public boolean hasNext() {
+            return nextPhrase != null;
         }
         
         public String next() throws IOException {
-            if (!finished) {
-                if (tokenizer != null && tokenizer.hasMoreTokens()) {
+            String retval = nextPhrase;
+            nextPhrase = computeNext();
+            return retval;
+        }
+        
+        private String computeNext() throws IOException {
+            if (tokenizer != null && tokenizer.hasMoreTokens()) {
+                return tokenizer.nextToken();
+            }
+            String line = reader.readLine();
+            if (line != null) {
+                tokenizer = new StringTokenizer(line, "|");
+                if (tokenizer.hasMoreTokens()) {
                     return tokenizer.nextToken();
                 }
-                String line = reader.readLine();
-                if (line != null) {
-                    tokenizer = new StringTokenizer(line, "|");
-                    if (tokenizer.hasMoreTokens()) {
-                        return tokenizer.nextToken();
-                    }
-                }
-                finished = true;
             }
             return null;
         }
     }
     
-    public static class Phrase implements Comparable<Phrase>{
+    public static class Phrase {
         
         public final String text;
         
@@ -351,12 +404,15 @@ public class FrequentElementsDetector {
             counter += amount;
         }
 
-        private String asString() {
+        public String asString() {
             return String.valueOf(counter) + ":" + getText();
         }
+        
+        public int compareByCounter(Phrase o) {
+            return counter - o.counter;
+        }
 
-        @Override
-        public int compareTo(Phrase o) {
+        public int compareByText(Phrase o) {
             return text.compareTo(o.text);
         }
 
@@ -399,5 +455,59 @@ public class FrequentElementsDetector {
             this.second = second;
             this.third = third;
         }        
+    }
+    
+    ////////////////////////////////////////////////
+    // For debug purposes
+    
+    private static final Diagnostics DIAGS = new Diagnostics();
+    
+    static class Diagnostics {
+        
+        private final List<Phase> phases = new ArrayList<>();
+        
+        public boolean addPhase(int readFiles, int writtenFiles) {
+            phases.add(new Phase(readFiles, writtenFiles));
+            return true;
+        }
+        
+        public boolean dump(Pair<TemporaryStorage, Integer> sorted) {
+            try {
+                System.out.println("//////////////////////////////////////////");
+                System.out.println("// DUMP OF SORTING STATISTICS");
+                TemporaryStorage storage = sorted.first;
+                int file = sorted.second;
+                storage.open(file, true, false);
+                Phrase phrase;
+                while ((phrase = storage.read(file)) != null) {
+                    System.out.println(phrase);
+                }
+                storage.close(file);
+                
+                System.out.println();
+                System.out.println();
+                for (int i = 0; i < phases.size(); ++i) {
+                    Phase phase = phases.get(i);
+                    System.out.println("Phase " + i + ": " 
+                            + phase.readFiles + " read => " 
+                            + phase.writtenFiles + " written");
+                }
+                System.out.println();
+                System.out.println("//////////////////////////////////////////");
+                System.out.println();
+            } catch (IOException ex) {
+                // do nothing
+            }
+            return true;
+        }
+        
+        private static class Phase {
+            public int readFiles;
+            public int writtenFiles;
+            public Phase(int readFiles, int writtenFiles) {
+                this.readFiles = readFiles;
+                this.writtenFiles = writtenFiles;
+            }
+        }
     }
 }
