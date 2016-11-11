@@ -23,7 +23,6 @@ public class ComplimentaryPairs {
                 + (ARRAY[i] + ARRAY[j])
             );
         });
-        
     }
     
     public static void detect(int array[], int K, Consumer consumer) {
