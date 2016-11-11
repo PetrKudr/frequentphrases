@@ -12,6 +12,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,23 +64,23 @@ public class TopPhrases {
             return extractTopPhrases(sorted.first, sorted.second, HOW_MANY_TOP_PHRASES);
         } finally {
             if (firstStorage != null) {
-                firstStorage.clear();
+                firstStorage.clearStorage();
             }
             if (secondStorage != null) {
-                secondStorage.clear();
+                secondStorage.clearStorage();
             }
         }
     }
     
     private Collection<String> extractTopPhrases(TemporaryStorage storage, int file, int howMany) throws IOException {
-        final TreeMap<Integer, List<String>> result = new TreeMap<>((Integer o1, Integer o2) -> o2.compareTo(o1)); // descending order
+        final TreeMap<Long, List<String>> result = new TreeMap<>((Long o1, Long o2) -> o2.compareTo(o1)); // descending order
         int size = 0;
         storage.open(file, true, false);
         Phrase phrase;
         while ((phrase = storage.read(file)) != null) {
             putInMapOfLists(result, phrase.counter, phrase.text);
             if (size == howMany) {
-                Map.Entry<Integer, List<String>> lastEntry = result.lastEntry();
+                Map.Entry<Long, List<String>> lastEntry = result.lastEntry();
                 List<String> value = lastEntry.getValue();
                 value.remove(0); // remove any phrase (let it be the first one)
                 if (value.isEmpty()) {
@@ -102,8 +103,7 @@ public class TopPhrases {
     private Pair<TemporaryStorage, Integer> externalSort(TemporaryStorage firstStorage, TemporaryStorage secondStorage, File input) throws IOException {
         int maxChunkSize = getBestChunkSize(input);
         List<Integer> chunkFiles = new ArrayList<>();
-        try (BufferedReader fIn = new BufferedReader(new FileReader(input))) {
-            PhrasesReader reader = new PhrasesReader(fIn);
+        try (PhrasesReader reader = new PhrasesReader(new BufferedReader(new FileReader(input)))) {
             while (reader.hasNext()) {
                 Collection<Phrase> chunk = readAndSortChunk(reader, maxChunkSize);
                 chunkFiles.add(writeChunk(firstStorage, chunk));
@@ -126,7 +126,7 @@ public class TopPhrases {
                 from = to;
                 to = Math.min(to + readStorage.getSimultaneousAccessNumber(), inputFiles.size());
             }
-            readStorage.clear();
+            readStorage.clearStorage();
             assert(DIAGS.addPhase(inputFiles.size(), outputFiles.size()));
             return externalSortBatch(writeStorage, readStorage, outputFiles);
         }
@@ -255,14 +255,78 @@ public class TopPhrases {
         
         void closeAll() throws IOException;
         
-        void clear() throws IOException;
-        
         Phrase read(int id) throws IOException;
         
         int write(int id, Phrase value) throws IOException;
         
         // Number of files opened simultaneously without performance issues
         int getSimultaneousAccessNumber();
+        
+        void clearStorage() throws IOException;
+    }
+    
+    // TODO: implement storage via Memory mapped files to measure performance
+    private static class MemoryMappedFileBasedTemporaryStorage implements TemporaryStorage {
+        
+        private final long inputFileSize = 0;
+        
+        private long mappedPosition = 0;
+        
+        private int mappedSize = 0;
+        
+        private int position = 0;
+
+        private int lastId = 0;
+        
+        private MappedByteBuffer currentMappedBuffer;
+
+        public MemoryMappedFileBasedTemporaryStorage(long inputFileSize) throws IOException {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+        
+        private MappedByteBuffer getBuffer(int position) {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+
+        @Override
+        public int create() throws IOException {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+
+        @Override
+        public boolean open(int id, boolean read, boolean write) throws IOException {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+
+        @Override
+        public void close(int id) throws IOException {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+
+        @Override
+        public void closeAll() throws IOException {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+
+        @Override
+        public void clearStorage() throws IOException {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+
+        @Override
+        public Phrase read(int id) throws IOException {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+
+        @Override
+        public int write(int id, Phrase value) throws IOException {
+            throw new UnsupportedOperationException("Not supported yet."); 
+        }
+
+        @Override
+        public int getSimultaneousAccessNumber() {
+            return 8;
+        }
     }
     
     private static class FileBasedTemporaryStorage implements TemporaryStorage {
@@ -314,7 +378,7 @@ public class TopPhrases {
         }
 
         @Override
-        public void clear() throws IOException {
+        public void clearStorage() throws IOException {
             for (int id = 0; id < lastId; ++id) {
                 close(id);
                 files.get(id).first.toFile().delete();
@@ -337,7 +401,7 @@ public class TopPhrases {
         public int write(int id, Phrase value) throws IOException {
             Triple<Path, BufferedReader, BufferedWriter> stored = files.get(id);
             assert stored != null;
-            String strValue = value.asString();
+            String strValue = String.valueOf(value.getCounter()) + ":" + value.getText();
             stored.third.write(strValue);
             stored.third.write('\n');
             return strValue.length() * Character.BYTES;
@@ -349,7 +413,7 @@ public class TopPhrases {
         }
     }
     
-    private static class PhrasesReader {
+    private static class PhrasesReader implements AutoCloseable {
         
         private final BufferedReader reader;
         
@@ -360,7 +424,11 @@ public class TopPhrases {
         public PhrasesReader(BufferedReader reader) throws IOException {
             this.reader = reader;
             this.tokenizer = null;
-            this.nextPhrase = computeNext();
+            try {
+                nextPhrase = computeNext();
+            } catch (IOException ex) {
+                reader.close();
+            }
         }
         
         public boolean hasNext() {
@@ -386,24 +454,29 @@ public class TopPhrases {
             }
             return null;
         }
+
+        @Override
+        public void close() throws IOException {
+            reader.close();
+        }
     }
     
     public static class Phrase {
         
         public final String text;
         
-        private int counter;
+        private long counter;
 
         public Phrase(String text, int counter) {
             this.text = text;
             this.counter = counter;
         }
         
-        public CharSequence getText() {
+        public String getText() {
             return text;
         }
         
-        public int getCounter() {
+        public long getCounter() {
             return counter;
         }
         
@@ -411,16 +484,17 @@ public class TopPhrases {
             ++counter;
         }
         
-        public void incCounter(int amount) {
+        public void incCounter(long amount) {
             counter += amount;
-        }
-
-        public String asString() {
-            return String.valueOf(counter) + ":" + getText();
         }
         
         public int compareByCounter(Phrase o) {
-            return counter - o.counter;
+            if (counter < o.counter) {
+                return -1;
+            } else if (counter == o.counter) {
+                return 0;
+            }
+            return 1;
         }
 
         public int compareByText(Phrase o) {
