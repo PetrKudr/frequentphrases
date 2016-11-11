@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 /**
  *
- * @author toor
+ * @author petrk
  */
 public class TopPhrasesTestGenerator {
     
