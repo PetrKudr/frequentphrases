@@ -1,4 +1,4 @@
-package frequentelements;
+package answers;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  *
  * @author toor
  */
-public class TestGenerator {
+public class TopPhrasesTestGenerator {
     
     private static final String PATH = "${HOME}/assignments/test02";
     
@@ -35,7 +35,7 @@ public class TestGenerator {
     }
 
     private static Dictionary readDictionary() throws IOException {
-        InputStream fIn = TestGenerator.class.getResourceAsStream("dictionary");
+        InputStream fIn = TopPhrasesTestGenerator.class.getResourceAsStream("dictionary");
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(fIn))) {
             List<String> lines = reader.lines().collect(Collectors.toCollection(() -> new ArrayList()));
             return new Dictionary(lines);
