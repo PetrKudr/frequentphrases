@@ -44,7 +44,7 @@ public class TopPhrases {
     
     private final static int BEST_CHUNK_SIZE = 1024 * 10; // bytes
     
-    private final static int HOW_MANY_TOP_PHRASES = 5;
+    private final static int HOW_MANY_TOP_PHRASES = 10;
 
     public static void main(String[] args) throws Exception {
         TopPhrases detector = new TopPhrases();
