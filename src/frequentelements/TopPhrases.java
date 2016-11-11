@@ -33,30 +33,34 @@ import java.util.stream.Collectors;
  *
  * @author toor
  */
-public class FrequentElementsDetector {
+public class TopPhrases {
     
-    private final static int MERGE_SIMULTANEOUSLY = 2;
+//    private final static int MERGE_SIMULTANEOUSLY = 2;
+//    
+//    private final static int BEST_CHUNK_SIZE = 32; // bytes
     
-    private final static int BEST_CHUNK_SIZE = 32; // bytes
+    private final static int MERGE_SIMULTANEOUSLY = 10;
     
-    private final static int HOW_MANY_TOP_PHRASES = 3;
+    private final static int BEST_CHUNK_SIZE = 1024 * 10; // bytes
+    
+    private final static int HOW_MANY_TOP_PHRASES = 5;
 
     public static void main(String[] args) throws Exception {
-        FrequentElementsDetector detector = new FrequentElementsDetector();
-        detector.detect(new File("/home/petrk/assignments/test01"));
+        TopPhrases detector = new TopPhrases();
+        Collection<String> topPhrases = detector.detect(new File(fixPath("${HOME}/assignments/test02")));
+        for (String phrase : topPhrases) {
+            System.out.println(phrase);
+        }
     }
     
-    public List<String> detect(File path) throws IOException {
+    public Collection<String> detect(File path) throws IOException {
         TemporaryStorage firstStorage = null;
         TemporaryStorage secondStorage = null;
         try {
             firstStorage = new FileBasedTemporaryStorage();
             secondStorage = new FileBasedTemporaryStorage();
             Pair<TemporaryStorage, Integer> sorted = externalSort(firstStorage, secondStorage, path);
-            Collection<String> topPhrases = extractTopPhrases(sorted.first, sorted.second, HOW_MANY_TOP_PHRASES);
-            for (String phrase : topPhrases) {
-                System.out.println(phrase);
-            }
+            return extractTopPhrases(sorted.first, sorted.second, HOW_MANY_TOP_PHRASES);
         } finally {
             if (firstStorage != null) {
                 firstStorage.clear();
@@ -65,7 +69,6 @@ public class FrequentElementsDetector {
                 secondStorage.clear();
             }
         }
-        return Collections.emptyList();
     }
     
     private Collection<String> extractTopPhrases(TemporaryStorage storage, int file, int howMany) throws IOException {
@@ -91,6 +94,10 @@ public class FrequentElementsDetector {
                 .flatMap((list) -> list.stream())
                 .collect(Collectors.toList());
     }
+    
+    private int getBestChunkSize(File input) {
+        return BEST_CHUNK_SIZE; 
+    }
 
     private Pair<TemporaryStorage, Integer> externalSort(TemporaryStorage firstStorage, TemporaryStorage secondStorage, File input) throws IOException {
         int maxChunkSize = getBestChunkSize(input);
@@ -105,10 +112,6 @@ public class FrequentElementsDetector {
         Pair<TemporaryStorage, Integer> sorted = externalSortBatch(firstStorage, secondStorage, chunkFiles);
         assert(DIAGS.dump(sorted));
         return sorted;
-    }
-    
-    private int getBestChunkSize(File input) {
-        return BEST_CHUNK_SIZE; 
     }
     
     private Pair<TemporaryStorage, Integer> externalSortBatch(TemporaryStorage readStorage, TemporaryStorage writeStorage, List<Integer> inputFiles) throws IOException {
@@ -232,6 +235,14 @@ public class FrequentElementsDetector {
             map.put(key, list);
         }
         list.add(value);
+    }
+    
+    public static String fixPath(String path) {
+        String home = System.getenv().get("HOME");
+        if (home != null && !home.isEmpty()) {
+            return path.replace("${HOME}", home);
+        }
+        return path;
     }
     
     public static interface TemporaryStorage {
@@ -364,13 +375,13 @@ public class FrequentElementsDetector {
         
         private String computeNext() throws IOException {
             if (tokenizer != null && tokenizer.hasMoreTokens()) {
-                return tokenizer.nextToken();
+                return tokenizer.nextToken().trim();
             }
             String line = reader.readLine();
             if (line != null) {
                 tokenizer = new StringTokenizer(line, "|");
                 if (tokenizer.hasMoreTokens()) {
-                    return tokenizer.nextToken();
+                    return tokenizer.nextToken().trim();
                 }
             }
             return null;
