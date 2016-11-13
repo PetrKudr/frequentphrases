@@ -1,0 +1,8 @@
+# Each line - one test case: 
+true: "accbccbcca"
+true: "accbcbcca"
+true: "a"
+true: ""
+false: "accbccdcca"
+false: "accbcdcca"
+

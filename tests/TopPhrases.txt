@@ -1,0 +1,507 @@
+# Tests are supposed to be generated with dedicated generator. It also 
+# generates golden file (i.e. file with results). The algorithm itself can be run
+# on separate virtual machine to force memory restrictions or can just be profiled
+# with some profiler (like java mission control flight recorder) to see memory and
+# other characteristics
+
+
+# Tests generator. Uses dictionary - plain text file where each line is one word.
+
+public class TopPhrasesTestGenerator {
+    
+    private static final String PATH = "${HOME}/assignments/test02";
+    
+    private static final boolean GENERATE_GOLDEN = true;
+    
+    private static final int PHRASES_NUMBER = 100000;
+    
+    public static void main(String args[]) throws IOException {
+        Dictionary dictionary = readDictionary();
+        dictionary.setMaxWords(3);
+        writeTest(dictionary);
+    }
+
+    private static Dictionary readDictionary() throws IOException {
+        InputStream fIn = TopPhrasesTestGenerator.class.getResourceAsStream("dictionary");
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(fIn))) {
+            List<String> lines = reader.lines().collect(Collectors.toCollection(() -> new ArrayList()));
+            return new Dictionary(lines);
+        }
+    }
+    
+    private static void writeTest(Dictionary dictionary) throws IOException {
+        Map<String, Integer> mapping = GENERATE_GOLDEN ? new HashMap<>() : null;
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(TopPhrases.fixPath(PATH)))) {
+            for (int i = 0; i < PHRASES_NUMBER; i += 50) {
+                writer.write(storePhrase(dictionary.makeRandomPhrase(), mapping));
+                for (int k = 1; k < 50; k++) {
+                    writer.write(" | ");
+                    writer.write(storePhrase(dictionary.makeRandomPhrase(), mapping));
+                }
+                writer.write('\n');
+            }
+        }
+        if (mapping != null) {
+            List<Map.Entry<String, Integer>> values = new LinkedList(mapping.entrySet());
+            Collections.sort(values, (e1, e2) -> e2.getValue().compareTo(e1.getValue()));
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(TopPhrases.fixPath(PATH) + ".golden"))) {
+                for (Map.Entry<String, Integer> value : values) {
+                    writer.write(String.valueOf(value.getValue()));
+                    writer.write(": ");
+                    writer.write(value.getKey());
+                    writer.write("\n");
+                }
+            }
+        }
+    }
+    
+    private static String storePhrase(String phrase, Map<String, Integer> mapping) {
+        if (mapping != null) {
+            Integer counter = mapping.get(phrase);
+            if (counter != null) {
+                mapping.put(phrase, counter + 1);
+            } else {
+                mapping.put(phrase, 1);
+            }
+        }
+        return phrase;
+    }
+    
+    private static class Dictionary {
+        
+        private final Random randomGenerator = new Random();
+        
+        private final List<String> words;
+        
+        private int maxWords = 2;
+        
+        private int minWords= 1;
+
+        public Dictionary(List<String> words) {
+            this.words = new ArrayList<>(words.size());
+            for (String word : words) {
+                String trimmed = word.trim();
+                if (trimmed.length() > 0) {
+                    this.words.add(trimmed);
+                }
+            }
+        }
+
+        public void setMaxWords(int maxWords) {
+            this.maxWords = maxWords;
+        }
+
+        public void setMinWords(int minWords) {
+            this.minWords = minWords;
+        }
+        
+        public String makeRandomPhrase() {
+            int numOfWords = randomGenerator.nextInt(maxWords - minWords + 1) + 1;
+            if (numOfWords > 1) {
+                StringBuilder sb = new StringBuilder(words.get(randomGenerator.nextInt(words.size())));
+                while (numOfWords > 1) {
+                    sb.append(' ');
+                    sb.append(words.get(randomGenerator.nextInt(words.size())));
+                    --numOfWords;
+                }
+                return sb.toString();
+            } else {
+                return words.get(randomGenerator.nextInt(words.size()));
+            }
+        }
+    }
+}
+
+# Dictionary
+Despite
+blasting
+Mexicans
+as
+rapists
+and
+criminals
+in
+his
+campaign
+kickoff
+and
+promising
+right
+up
+to
+Election
+Day
+to
+build
+a
+southern
+border
+wall
+Trump
+did
+better
+among
+Hispanic
+voters
+than
+2012
+Republican
+presidential
+nominee
+Mitt
+Romney
+exit
+polling
+showed
+Romney
+s
+much
+tamer
+self
+deportation
+plan
+resulted
+in
+just
+27
+percent
+support
+among
+Hispanics
+but
+Trump
+who
+also
+vowed
+to
+forcibly
+deport
+millions
+of
+illegal
+immigrants
+won
+29
+percent
+of
+Hispanics
+Clinton
+s
+share
+of
+the
+Hispanic
+vote
+which
+increased
+to
+11
+percent
+of
+this
+year
+s
+electorate
+up
+from
+10
+percent
+in
+2012
+was
+65
+percent
+a
+six
+point
+drop
+from
+the
+71
+percent
+President
+Obama
+scored
+four
+years
+ago
+And
+Trump
+got
+31
+percent
+of
+voters
+who
+said
+they
+hadn
+t
+been
+born
+US
+citizens
+SEE
+ALSO
+Trump
+s
+voters
+were
+hidden
+in
+plain
+sight
+Trump
+s
+voters
+were
+hidden
+in
+plain
+sight
+Miami
+resident
+Josefina
+Rocabado
+who
+emigrated
+from
+the
+Dominican
+Republic
+in
+1979
+said
+Trump
+s
+economic
+policies
+far
+outweighed
+his
+immigration
+stance
+Talk
+to
+me
+about
+what
+s
+happening
+in
+my
+house
+Rocabado
+50
+told
+USA
+Today
+I
+have
+three
+kids
+one
+with
+special
+needs
+In
+the
+past
+eight
+years
+we
+went
+from
+being
+in
+the
+middle
+class
+to
+the
+bottom
+of
+the
+middle
+class
+We
+need
+to
+pay
+bills
+Outrage
+over
+the
+infamous
+Access
+Hollywood
+video
+that
+caught
+Trump
+bragging
+about
+grabbing
+women
+by
+the
+p
+y
+and
+the
+deluge
+of
+sex
+assault
+allegations
+that
+followed
+also
+failed
+to
+result
+in
+women
+voters
+flocking
+to
+Clinton
+as
+was
+widely
+predicted
+Clinton
+drew
+a
+smaller
+percentage
+of
+the
+women
+s
+vote
+than
+Obama
+did
+in
+2012
+She
+won
+54
+percent
+of
+women
+s
+votes
+down
+from
+the
+55
+percent
+who
+backed
+Obama
+s
+re
+election
+bid
+Trump
+meanwhile
+garnered
+42
+percent
+of
+women
+just
+two
+points
+less
+than
+Romney
+And
+Trump
+who
+was
+branded
+a
+bigot
+for
+his
+leading
+role
+in
+the
+anti
+Obama
+birther
+movement
+won
+8
+percent
+of
+black
+votes
+compared
+to
+Romney
+s
+7
+percent
+Black
+support
+for
+Clinton
+meanwhile
+was
+88
+percent
+a
+five
+point
+drop
+from
+the
+93
+percent
+who
+went
+for
+Obama
+in
+2012
+The
+under
+30
+vote
+for
+Republicans
+remained
+steady
+at
+37
+percent
+but
+Clinton
+won
+just
+55
+percent
+of
+that
+age
+bracket
+which
+provided
+a
+base
+of
+support
+for
+her
+vanquished
+Democratic
+rival
+Vermont
+Sen
+Bernie
+Sanders

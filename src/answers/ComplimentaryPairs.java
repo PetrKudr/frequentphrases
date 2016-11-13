@@ -15,18 +15,19 @@ public class ComplimentaryPairs {
     
     private static final int ARRAY[] = {6, 7, 5, 2, 15, 65, 7, 14, 21, 1, -4, 0, 18};
     
-    private static final int K = 14;
-    
     public static void main(String args[]) {
+        int K = 100;
+        System.out.print(K);
+        System.out.print(" ");
         detect(ARRAY, K, (int i, int j) -> {
-            System.out.println(
-                "(" + i + ", " + j + ") = " 
-                + ARRAY[i] + " + " + ARRAY[j] + " = "
-                + (ARRAY[i] + ARRAY[j])
+            System.out.print(
+                "(" + i + ", " + j + ") "
             );
         });
     }
     
+    // Time complexity - O(n) in average, O(n^2) in worst case
+    // Memory complexity - O(n)
     public static void detect(int array[], int K, Consumer consumer) {
         Map<Integer, List<Integer>> mapping = new HashMap<Integer, List<Integer>>();
         for (int i = 0; i < array.length; ++i) {

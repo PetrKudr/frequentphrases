@@ -49,6 +49,8 @@ public class TopPhrases {
         }
     }
     
+    // Time complexity - O(n * log(n))
+    // Memory (disc) complexity - O(n)
     public Collection<String> detect(File path) throws IOException {
         TemporaryStorage firstStorage = null;
         TemporaryStorage secondStorage = null;
@@ -173,6 +175,8 @@ public class TopPhrases {
         return fetchNextLine(storage, readers);
     }
     
+    // TODO: sort readers by their phrases. This will reduce complexity for 
+    // cases when many files processed simultaneously
     private Phrase fetchNextLine(TemporaryStorage storage, List<Pair<Integer, Phrase>> readers) throws IOException {
         if (readers.isEmpty()) {
             return null;
