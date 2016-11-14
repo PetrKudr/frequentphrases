@@ -27,17 +27,19 @@ BEGIN
               SET slice = string;
             END IF;
  
-            IF (LENGTH(slice) > 0) THEN  
-              INSERT INTO temptable VALUES(origID, slice);   
-            END IF;
+            INSERT INTO temptable VALUES(origID, slice);
+            --IF (LENGTH(slice) > 0) THEN  
+            --  INSERT INTO temptable VALUES(origID, slice);   
+            --END IF;
  
             SET string = RIGHT(string, LENGTH(string) - idx);      
             SET idx = LOCATE(delim, string);
           END WHILE; 
 
-          IF (LENGTH(string) > 0) THEN
-            INSERT INTO temptable VALUES(origID, string);   
-          END IF; 
+          INSERT INTO temptable VALUES(origID, string);   
+          --IF (LENGTH(string) > 0) THEN
+          --  INSERT INTO temptable VALUES(origID, string);   
+          --END IF; 
         END;
       ELSE 
         INSERT INTO temptable VALUES(origID, null);
