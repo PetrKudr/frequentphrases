@@ -1,0 +1,7 @@
+SELECT Capitalize("a");
+SELECT Capitalize("A");
+SELECT Capitalize("aa");
+SELECT Capitalize("UNITED states Of AmERIca");
+SELECT Capitalize("f test s");
+SELECT Capitalize("");
+SELECT Capitalize(null);

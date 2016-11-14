@@ -1,0 +1,10 @@
+CREATE TABLE bugs (id INT, title VARCHAR(50), open_date DATETIME, close_date DATETIME);
+INSERT INTO bugs VALUES (1, "first", "2010-01-01", "2010-01-02"),
+(2, "second", "2010-01-01", "2010-01-15"),
+(3, "third", "2010-01-02", "2010-01-07"),
+(4, "forth", "2010-01-05", "2010-01-13"),
+(5, "fifth", "2010-01-06", "2010-01-13"),
+(6, "sixth", "2010-01-14", NULL);
+
+-- Show opened bugs in January 2010
+CALL ShowOpenBugs(STR_TO_DATE('2010-01-01', '%Y-%m-%d'), STR_TO_DATE('2010-01-30', '%Y-%m-%d'));

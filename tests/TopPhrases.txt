@@ -1,7 +1,7 @@
 # Tests are supposed to be generated with dedicated generator. It also 
 # generates golden file (i.e. file with results). The algorithm itself can be run
 # on separate virtual machine to force memory restrictions or can just be profiled
-# with some profiler (like java mission control flight recorder) to see memory and
+# with some profiler (like java mission control flight recorder) to see used memory and
 # other characteristics
 
 
